@@ -13,5 +13,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0"
   }
 }
