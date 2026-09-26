@@ -34,6 +34,49 @@ export class R1cs {
     this.enforce([{ wire: left, coeff: 1n }], [{ wire: right, coeff: 1n }], [{ wire: out, coeff: 1n }]);
   }
 
+  /** w ∈ {0,1}:  w * w = w */
+  boolean(w: number): void {
+    this.enforce(lcWire(w), lcWire(w), lcWire(w));
+  }
+
+  /** out = a + b */
+  add(a: number, b: number, out: number): void {
+    this.enforce(
+      [
+        { wire: a, coeff: 1n },
+        { wire: b, coeff: 1n },
+      ],
+      lcConst(1n),
+      lcWire(out),
+    );
+  }
+
+  /** out = coeff * w */
+  scale(w: number, coeff: bigint, out: number): void {
+    this.enforce(lcWire(w), lcConst(coeff), lcWire(out));
+  }
+
+  /**
+   * Algebraic hash used as a circuit-friendly stand-in for Pedersen hash:
+   *   out = (left + C1) * (right + C2) − C3
+   */
+  fieldHash(left: number, right: number, out: number, c1: bigint, c2: bigint, c3: bigint): void {
+    this.enforce(
+      [
+        { wire: left, coeff: 1n },
+        { wire: 0, coeff: c1 },
+      ],
+      [
+        { wire: right, coeff: 1n },
+        { wire: 0, coeff: c2 },
+      ],
+      [
+        { wire: out, coeff: 1n },
+        { wire: 0, coeff: c3 },
+      ],
+    );
+  }
+
   evalLc(lc: Lc, assignment: bigint[]): bigint {
     let acc = 0n;
     for (const t of lc) acc = add(acc, mul(t.coeff, assignment[t.wire] ?? 0n));
