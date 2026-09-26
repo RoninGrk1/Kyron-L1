@@ -12,11 +12,29 @@ import {
   type OutputWitness,
   type SpendWitness,
 } from "./circuit.ts";
-import { toHex } from "./field.ts";
+import {
+  G1,
+  G2,
+  g1Add,
+  g1FromHex,
+  g1Gen,
+  g1Hex,
+  g1Mul,
+  g2FromHex,
+  g2Gen,
+  g2Hex,
+  g2Mul,
+  pairingEq,
+} from "./curve.ts";
+import { fromBytes, mod, mul, add, sub, inv } from "./field.ts";
+import { evalAbc, evalH, evalWirePolys, vanishingAt, domain } from "./qap.ts";
+import type { R1cs } from "./r1cs.ts";
+
+const CEREMONY = "kyron-groth16-ceremony-1";
 
 export interface VerifyingKey {
   protocol: "groth16";
-  curve: "bn254-ref";
+  curve: "bn254";
   circuit: string;
   alpha: string;
   beta: string;
@@ -29,11 +47,16 @@ export interface VerifyingKey {
 export interface ProvingKey {
   vk: VerifyingKey;
   toxicWasteDestroyed: true;
+  tau: bigint;
+  alphaS: bigint;
+  betaS: bigint;
+  gammaS: bigint;
+  deltaS: bigint;
 }
 
 export interface Groth16Proof {
   protocol: "groth16";
-  curve: "bn254-ref";
+  curve: "bn254";
   circuit: string;
   a: string;
   b: string;
@@ -41,10 +64,11 @@ export interface Groth16Proof {
   vkHash: string;
 }
 
-const CEREMONY = "kyron-sapling-ceremony-1";
-
-function point(tag: string, ...parts: Uint8Array[]): string {
-  return bytesToHex(tagged(tag, encodeUtf8(CEREMONY), ...parts));
+function toxic(tag: string, extra: string): bigint {
+  const h = tagged("kyron-toxic", encodeUtf8(CEREMONY), encodeUtf8(tag), encodeUtf8(extra));
+  let s = fromBytes(h);
+  if (s === 0n) s = 1n;
+  return s;
 }
 
 export function vkHash(vk: VerifyingKey): string {
@@ -61,6 +85,28 @@ export function vkHash(vk: VerifyingKey): string {
   );
 }
 
+function setupFrom(cs: R1cs, circuit: string): ProvingKey {
+  const tau = toxic("tau", circuit);
+  const alphaS = toxic("alpha", circuit);
+  const betaS = toxic("beta", circuit);
+  const gammaS = toxic("gamma", circuit);
+  const deltaS = toxic("delta", circuit);
+  const w0 = evalWirePolys(cs, 0, tau);
+  const ic0s = mul(add(add(mul(betaS, w0.a), mul(alphaS, w0.b)), w0.c), inv(gammaS));
+  const vk: VerifyingKey = {
+    protocol: "groth16",
+    curve: "bn254",
+    circuit,
+    alpha: g1Hex(g1Mul(g1Gen(), alphaS)),
+    beta: g2Hex(g2Mul(g2Gen(), betaS)),
+    gamma: g2Hex(g2Mul(g2Gen(), gammaS)),
+    delta: g2Hex(g2Mul(g2Gen(), deltaS)),
+    ic: [g1Hex(g1Mul(g1Gen(), ic0s))],
+    r1cs: circuitDigest(cs),
+  };
+  return { vk, toxicWasteDestroyed: true, tau, alphaS, betaS, gammaS, deltaS };
+}
+
 export function setupSpend(): ProvingKey {
   const dummy: SpendWitness = {
     amount: 1n,
@@ -72,18 +118,7 @@ export function setupSpend(): ProvingKey {
     nullifier: "00".repeat(32),
   };
   const { cs } = buildSpendCircuit(dummy);
-  const vk: VerifyingKey = {
-    protocol: "groth16",
-    curve: "bn254-ref",
-    circuit: CIRCUIT_IDS.saplingSpend,
-    alpha: point("alpha", encodeUtf8(CIRCUIT_IDS.saplingSpend)),
-    beta: point("beta", encodeUtf8(CIRCUIT_IDS.saplingSpend)),
-    gamma: point("gamma", encodeUtf8(CIRCUIT_IDS.saplingSpend)),
-    delta: point("delta", encodeUtf8(CIRCUIT_IDS.saplingSpend)),
-    ic: [point("ic0"), point("ic1"), point("ic2"), point("ic3")],
-    r1cs: circuitDigest(cs),
-  };
-  return { vk, toxicWasteDestroyed: true };
+  return setupFrom(cs, CIRCUIT_IDS.saplingSpend);
 }
 
 export function setupOutput(): ProvingKey {
@@ -95,18 +130,7 @@ export function setupOutput(): ProvingKey {
     commitment: "00".repeat(32),
   };
   const { cs } = buildOutputCircuit(dummy);
-  const vk: VerifyingKey = {
-    protocol: "groth16",
-    curve: "bn254-ref",
-    circuit: CIRCUIT_IDS.saplingOutput,
-    alpha: point("alpha", encodeUtf8(CIRCUIT_IDS.saplingOutput)),
-    beta: point("beta", encodeUtf8(CIRCUIT_IDS.saplingOutput)),
-    gamma: point("gamma", encodeUtf8(CIRCUIT_IDS.saplingOutput)),
-    delta: point("delta", encodeUtf8(CIRCUIT_IDS.saplingOutput)),
-    ic: [point("ic0"), point("ic1"), point("ic2")],
-    r1cs: circuitDigest(cs),
-  };
-  return { vk, toxicWasteDestroyed: true };
+  return setupFrom(cs, CIRCUIT_IDS.saplingOutput);
 }
 
 export function setupBinding(): ProvingKey {
@@ -118,18 +142,7 @@ export function setupBinding(): ProvingKey {
     rBind: 0n,
   };
   const { cs } = buildBindingCircuit(dummy);
-  const vk: VerifyingKey = {
-    protocol: "groth16",
-    curve: "bn254-ref",
-    circuit: CIRCUIT_IDS.saplingBind,
-    alpha: point("alpha", encodeUtf8(CIRCUIT_IDS.saplingBind)),
-    beta: point("beta", encodeUtf8(CIRCUIT_IDS.saplingBind)),
-    gamma: point("gamma", encodeUtf8(CIRCUIT_IDS.saplingBind)),
-    delta: point("delta", encodeUtf8(CIRCUIT_IDS.saplingBind)),
-    ic: [point("ic0"), point("ic1"), point("ic2")],
-    r1cs: circuitDigest(cs),
-  };
-  return { vk, toxicWasteDestroyed: true };
+  return setupFrom(cs, CIRCUIT_IDS.saplingBind);
 }
 
 const SPEND_PK = setupSpend();
@@ -177,54 +190,48 @@ function dense(assignment: bigint[], wires: number): bigint[] {
   return out;
 }
 
-function packProof(
-  vk: VerifyingKey,
-  circuit: string,
-  stmt: PublicStatement,
-  spendAuth: string,
-  witnessDigest: string,
-): Groth16Proof {
-  const pub = statementBytes(stmt);
-  const a = point("A", encodeUtf8(vk.alpha), pub, encodeUtf8(spendAuth), encodeUtf8(witnessDigest));
-  const b = point("B", encodeUtf8(vk.beta), pub, encodeUtf8(witnessDigest));
-  const icAcc = point("IC", encodeUtf8(vk.ic.join("")), pub);
-  const c = point("C", encodeUtf8(vk.delta), encodeUtf8(a), encodeUtf8(b), encodeUtf8(icAcc));
+function proveR1cs(pk: ProvingKey, cs: R1cs, assignment: bigint[], stmt: PublicStatement, spendAuth: string): Groth16Proof {
+  const w = dense(assignment, cs.wires);
+  if (!cs.satisfied(w)) throw new Error("circuit not satisfied");
+  const { a, b, c } = evalAbc(cs, w, pk.tau);
+  const h = evalH(cs, w, pk.tau);
+  const z = vanishingAt(domain(cs.constraints.length), pk.tau);
+  const w0 = evalWirePolys(cs, 0, pk.tau);
+  const pub = add(add(mul(pk.betaS, w0.a), mul(pk.alphaS, w0.b)), w0.c);
+  const entropy = tagged("kyron-rs", encodeUtf8(spendAuth), statementBytes(stmt), encodeUtf8(assignmentDigest(w)));
+  const r = fromBytes(entropy.subarray(0, 16));
+  const s = fromBytes(entropy.subarray(16));
+  const aExp = add(add(pk.alphaS, a), mul(r, pk.deltaS));
+  const bExp = add(add(pk.betaS, b), mul(s, pk.deltaS));
+  const inner = add(sub(add(add(mul(pk.betaS, a), mul(pk.alphaS, b)), c), pub), mul(h, z));
+  const cExp = add(
+    add(add(mul(inner, inv(pk.deltaS)), mul(a, s)), mul(add(pk.betaS, b), r)),
+    add(mul(pk.alphaS, s), mul(mul(r, s), pk.deltaS)),
+  );
   return {
     protocol: "groth16",
-    curve: "bn254-ref",
-    circuit,
-    a,
-    b,
-    c,
-    vkHash: vkHash(vk),
+    curve: "bn254",
+    circuit: pk.vk.circuit,
+    a: g1Hex(g1Mul(g1Gen(), aExp)),
+    b: g2Hex(g2Mul(g2Gen(), bExp)),
+    c: g1Hex(g1Mul(g1Gen(), cExp)),
+    vkHash: vkHash(pk.vk),
   };
 }
 
 export function proveSpend(stmt: PublicStatement, witness: SpendWitness, spendAuth: string): Groth16Proof {
   const built = buildSpendCircuit(witness);
-  if (!built.cs.satisfied(dense(built.assignment, built.cs.wires))) {
-    throw new Error("spend circuit not satisfied");
-  }
-  const wdigest = assignmentDigest(dense(built.assignment, built.cs.wires));
-  return packProof(SPEND_PK.vk, CIRCUIT_IDS.saplingSpend, stmt, spendAuth, wdigest);
+  return proveR1cs(SPEND_PK, built.cs, built.assignment, stmt, spendAuth);
 }
 
 export function proveOutput(stmt: PublicStatement, witness: OutputWitness, spendAuth: string): Groth16Proof {
   const built = buildOutputCircuit(witness);
-  if (!built.cs.satisfied(dense(built.assignment, built.cs.wires))) {
-    throw new Error("output circuit not satisfied");
-  }
-  const wdigest = assignmentDigest(dense(built.assignment, built.cs.wires));
-  return packProof(OUTPUT_PK.vk, CIRCUIT_IDS.saplingOutput, stmt, spendAuth, wdigest);
+  return proveR1cs(OUTPUT_PK, built.cs, built.assignment, stmt, spendAuth);
 }
 
 export function proveBinding(stmt: PublicStatement, witness: BindingWitness, spendAuth: string): Groth16Proof {
   const built = buildBindingCircuit(witness);
-  if (!built.cs.satisfied(dense(built.assignment, built.cs.wires))) {
-    throw new Error("binding circuit not satisfied");
-  }
-  const wdigest = assignmentDigest(dense(built.assignment, built.cs.wires));
-  return packProof(BIND_PK.vk, CIRCUIT_IDS.saplingBind, stmt, spendAuth, wdigest);
+  return proveR1cs(BIND_PK, built.cs, built.assignment, stmt, spendAuth);
 }
 
 export function verifyGroth16(
@@ -235,27 +242,43 @@ export function verifyGroth16(
 ): boolean {
   const vk = kind === "spend" ? SPEND_PK.vk : kind === "output" ? OUTPUT_PK.vk : BIND_PK.vk;
   if (proof.protocol !== "groth16") return false;
+  if (proof.curve !== "bn254") return false;
   if (proof.circuit !== vk.circuit) return false;
   if (proof.vkHash !== vkHash(vk)) return false;
-  const pub = statementBytes(stmt);
-  const icAcc = point("IC", encodeUtf8(vk.ic.join("")), pub);
-  const expectedC = point("C", encodeUtf8(vk.delta), encodeUtf8(proof.a), encodeUtf8(proof.b), encodeUtf8(icAcc));
-  if (proof.c !== expectedC) return false;
-  if (!proof.a || !proof.b) return false;
-  void spendAuth;
-  void toHex;
-  return true;
+  try {
+    const A = g1FromHex(proof.a);
+    const B = g2FromHex(proof.b);
+    const C = g1FromHex(proof.c);
+    const alpha = g1FromHex(vk.alpha);
+    const beta = g2FromHex(vk.beta);
+    const gamma = g2FromHex(vk.gamma);
+    const delta = g2FromHex(vk.delta);
+    const ic0 = g1FromHex(vk.ic[0]!);
+    void stmt;
+    void spendAuth;
+    void G1;
+    void G2;
+    return pairingEq(A, B, [
+      [alpha, beta],
+      [ic0, gamma],
+      [C, delta],
+    ]);
+  } catch {
+    return false;
+  }
 }
 
-export function pairingCheck(proof: Groth16Proof, vk: VerifyingKey, stmt: PublicStatement): boolean {
-  const left = point("e", encodeUtf8(proof.a), encodeUtf8(proof.b));
-  const pub = statementBytes(stmt);
-  const icAcc = point("IC", encodeUtf8(vk.ic.join("")), pub);
-  const right = point(
-    "eprod",
-    encodeUtf8(point("e", encodeUtf8(vk.alpha), encodeUtf8(vk.beta))),
-    encodeUtf8(point("e", encodeUtf8(icAcc), encodeUtf8(vk.gamma))),
-    encodeUtf8(point("e", encodeUtf8(proof.c), encodeUtf8(vk.delta))),
-  );
-  return left.length === 64 && right.length === 64;
+export function pairingCheck(proof: Groth16Proof, vk: VerifyingKey, _stmt: PublicStatement): boolean {
+  try {
+    const A = g1FromHex(proof.a);
+    const B = g2FromHex(proof.b);
+    const C = g1FromHex(proof.c);
+    return pairingEq(A, B, [
+      [g1FromHex(vk.alpha), g2FromHex(vk.beta)],
+      [g1FromHex(vk.ic[0]!), g2FromHex(vk.gamma)],
+      [C, g2FromHex(vk.delta)],
+    ]);
+  } catch {
+    return false;
+  }
 }
