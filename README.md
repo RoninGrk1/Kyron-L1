@@ -1,32 +1,69 @@
 # Kyron (KRN)
 
-Reference implementation of the Kyron privacy-focused Layer 1 protocol.
+A privacy Layer 1. Public when you want it. Private when you don’t.
 
-This is a local, auditable protocol stack — not a production network.
+Hard cap. Proof of Stake. Shielded transfers. Open source.
 
-Shielded transfers use a **Zcash Sapling-style Groth16 layer** (`src/crypto/snark/`):
+---
 
-- Spend circuit: note opening, nullifier PRF, Pedersen `cv = v·Gv + rcv·Gr`, `rk = ak + α·Gak`, Merkle gadget
-- Output circuit: note opening + value commitment
-- Binding circuit: `Σ cv_spend − Σ cv_output = vPub·Gv + rBind·Gr`
-- Published verifying keys from a reference ceremony (`kyron-sapling-ceremony-1`)
-- Groth16-shaped proofs `(A, B, C)` on a BN254 scalar-field API
-- Pairing check is hashed (no native BLS12-381 / Jubjub pairing in this Node reference). Swap `groth16.ts` for a real `ark-groth16` / `bellman` prover before mainnet.
+## Why it exists
 
-## Spec constants
+Most chains force a tradeoff: transparent ledgers or slow, opaque privacy.
 
-| Parameter | Value |
+Kyron keeps a public account layer for payments, staking, and governance — and a shielded pool so value can move without publishing sender, receiver, or amount.
+
+Same asset. Two modes.
+
+---
+
+## The token
+
+| | |
 | --- | --- |
-| Ticker | KRN |
+| Ticker | **KRN** |
+| Max supply | **455,000,000** |
+| At genesis | **127,400,000** (28%) |
+| Rest | four equal releases at years **2, 4, 6, 8** |
+| Each release | **81,900,000** |
 | Decimals | 18 |
-| Max supply | 455,000,000 KRN |
-| Initial supply | 127,400,000 KRN (28%) |
-| Release | four 81,900,000 KRN tranches at years 2, 4, 6, 8 |
-| Consensus | Permissionless Proof-of-Stake with 2/3 finality |
 
-## Run
+No infinite inflation. After year 8 the cap is reached.
 
-Requires Node.js 22+.
+---
+
+## How it works (one page)
+
+**Public** — send KRN the usual way. Balances and fees are visible.
+
+**Shield** — lock public KRN into a private note. Only a commitment hits the chain.
+
+**Private send** — spend notes with a zero-knowledge proof. The network sees a valid proof, a nullifier (so notes can’t be spent twice), and new commitments. Not who, not how much.
+
+**Unshield** — bring value back to a public address.
+
+**Stake** — lock KRN, produce blocks, earn fees + schedule releases. Misbehave and you get slashed.
+
+**Govern** — stake-weighted votes on protocol changes.
+
+Privacy math is Zcash Sapling-style (Groth16 + Pedersen commitments). This repo is a working reference, not a mainnet binary.
+
+---
+
+## Why a VC should care
+
+- **Clear cap.** 455M. Easy to model.
+- **Known unlocks.** Four dates. No surprise emissions.
+- **Two products in one chain.** Transparent DeFi + private transfers without a second token.
+- **Proven primitive.** Sapling is the most battle-tested shielded design after Zcash.
+- **Runnable today.** Tests + a 5-block demo in this repo.
+
+Not production-ready. Pairing checks in the reference prover are hashed; a real Groth16 stack (BLS12-381) is the next engineering step.
+
+---
+
+## Run it
+
+Node 22+.
 
 ```bash
 node --experimental-strip-types --test test/*.test.ts
@@ -34,12 +71,18 @@ node --experimental-strip-types src/cli.ts demo
 node --experimental-strip-types src/cli.ts supply
 ```
 
-## Layout
+---
 
-- `src/tokenomics` — hard-capped supply and the two-year release schedule
-- `src/crypto` — addresses, signatures, Merkle tree, shielded notes, Sapling Groth16
-- `src/ledger` — state machine, fees, transaction application
-- `src/consensus` — validator set, proposer election, slashing, rewards
-- `src/wallet` — public and shielded transaction construction
-- `src/node` — in-process chain, mempool, block production, RPC views
-- `src/governance` — stake-weighted proposals and votes
+## Repo
+
+| Folder | What |
+| --- | --- |
+| `src/tokenomics` | Cap and unlock schedule |
+| `src/crypto` | Keys, Merkle tree, shielded notes, Sapling SNARK |
+| `src/ledger` | Balances, fees, state |
+| `src/consensus` | Validators, finality, slashing |
+| `src/wallet` | Public + private txs |
+| `src/node` | Local chain + mempool |
+| `src/governance` | Proposals and votes |
+
+Code: [github.com/RoninGrk1/Kyron-L1](https://github.com/RoninGrk1/Kyron-L1)
