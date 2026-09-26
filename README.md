@@ -6,10 +6,12 @@ This is a local, auditable protocol stack — not a production network.
 
 Shielded transfers use a **Zcash Sapling-style Groth16 layer** (`src/crypto/snark/`):
 
-- Spend and output R1CS circuits bind note openings, nullifiers, and value
-- A published verifying key from a reference ceremony (`kyron-sapling-ceremony-1`)
+- Spend circuit: note opening, nullifier PRF, Pedersen `cv = v·Gv + rcv·Gr`, `rk = ak + α·Gak`, Merkle gadget
+- Output circuit: note opening + value commitment
+- Binding circuit: `Σ cv_spend − Σ cv_output = vPub·Gv + rBind·Gr`
+- Published verifying keys from a reference ceremony (`kyron-sapling-ceremony-1`)
 - Groth16-shaped proofs `(A, B, C)` on a BN254 scalar-field API
-- Pairing check is hashed (no native BLS12-381 pairing in this Node reference). Swap `groth16.ts` for a real `ark-groth16` / `bellman` prover before mainnet.
+- Pairing check is hashed (no native BLS12-381 / Jubjub pairing in this Node reference). Swap `groth16.ts` for a real `ark-groth16` / `bellman` prover before mainnet.
 
 ## Spec constants
 
