@@ -57,9 +57,12 @@ test("groth16 prove/verify spend", () => {
   const stmt = { nullifiers: [nf], commitments: [], publicAmount: "5", fee: "0" };
   const proof = proveSpend(stmt, { ...note, nsk: w.nullifierKey, commitment: cm, nullifier: nf }, w.spend.publicKey);
   assert.equal(proof.protocol, "groth16");
+  assert.equal(proof.curve, "bn254");
   assert.equal(proof.circuit, "kyron-sapling-spend-v2");
   assert.equal(proof.vkHash, vkHash(spendVerifyingKey()));
   assert.equal(verifyGroth16(proof, stmt, w.spend.publicKey, "spend"), true);
+  const bad = { ...proof, c: proof.a };
+  assert.equal(verifyGroth16(bad, stmt, w.spend.publicKey, "spend"), false);
 });
 
 test("sapling shield requires output balance", () => {
