@@ -64,14 +64,26 @@ export class Wallet {
       nonce: enc.nonce,
     };
     const acc = getAccount(state, this.address);
+    const outputWitness = {
+      amount,
+      owner: note.owner,
+      rcm: note.rcm,
+      memo: note.memo,
+      commitment: enc.commitment,
+    };
     let fee = 0n;
     for (let i = 0; i < 2; i++) {
-      payload.proof = makeProof("shield", this.keys.spend.publicKey, {
-        nullifiers: [],
-        commitments: [enc.commitment],
-        publicAmount: amount.toString(),
-        fee: fee.toString(),
-      });
+      payload.proof = makeProof(
+        "shield",
+        this.keys.spend.publicKey,
+        {
+          nullifiers: [],
+          commitments: [enc.commitment],
+          publicAmount: amount.toString(),
+          fee: fee.toString(),
+        },
+        { outputs: [outputWitness] },
+      );
       fee = estimateFee("shield", payload);
     }
     const signed = signTx(
@@ -107,16 +119,37 @@ export class Wallet {
       commitment: note.commitment,
     };
     const acc = getAccount(state, this.address);
+    const leafIndex = state.notes.get(note.commitment)?.leafIndex;
+    const pathSiblings =
+      leafIndex !== undefined && leafIndex >= 0 ? state.noteTree.proof(leafIndex).siblings : undefined;
+    const spendWitness = {
+      amount: note.amount,
+      owner: note.owner,
+      rcm: note.rcm,
+      memo: note.memo,
+      nsk: this.keys.nullifierKey,
+      commitment: note.commitment,
+      nullifier,
+      root,
+      leafIndex,
+      pathSiblings,
+      ak: this.keys.nullifierKey,
+    };
     let fee = 0n;
     for (let i = 0; i < 2; i++) {
-      payload.proof = makeProof("unshield", this.keys.spend.publicKey, {
-        root,
-        nullifiers: [nullifier],
-        commitments: [],
-        publicAmount: amount.toString(),
-        fee: fee.toString(),
-        anchorRoot: root,
-      });
+      payload.proof = makeProof(
+        "unshield",
+        this.keys.spend.publicKey,
+        {
+          root,
+          nullifiers: [nullifier],
+          commitments: [],
+          publicAmount: amount.toString(),
+          fee: fee.toString(),
+          anchorRoot: root,
+        },
+        { spends: [spendWitness] },
+      );
       fee = estimateFee("unshield", payload);
     }
     const tx = signTx(
@@ -173,16 +206,57 @@ export class Wallet {
       outputs,
     };
     const acc = getAccount(state, this.address);
+    const spendWitnesses = inputs.map((n) => {
+      const leafIndex = state.notes.get(n.commitment)?.leafIndex;
+      const pathSiblings =
+        leafIndex !== undefined && leafIndex >= 0 ? state.noteTree.proof(leafIndex).siblings : undefined;
+      return {
+        amount: n.amount,
+        owner: n.owner,
+        rcm: n.rcm,
+        memo: n.memo,
+        nsk: this.keys.nullifierKey,
+        commitment: n.commitment,
+        nullifier: n.nullifier,
+        root,
+        leafIndex,
+        pathSiblings,
+        ak: this.keys.nullifierKey,
+      };
+    });
+    const outputWitnesses = [
+      {
+        amount,
+        owner: toAddress,
+        rcm: outNote.rcm,
+        memo: outNote.memo,
+        commitment: outEnc.commitment,
+      },
+    ];
+    if (changeLocal) {
+      outputWitnesses.push({
+        amount: change,
+        owner: this.address,
+        rcm: changeLocal.rcm,
+        memo: changeLocal.memo,
+        commitment: changeLocal.commitment,
+      });
+    }
     let fee = 0n;
     for (let i = 0; i < 2; i++) {
-      payload.proof = makeProof("shielded_transfer", this.keys.spend.publicKey, {
-        root,
-        nullifiers,
-        commitments: outputs.map((o) => o.commitment),
-        publicAmount: "0",
-        fee: fee.toString(),
-        anchorRoot: root,
-      });
+      payload.proof = makeProof(
+        "shielded_transfer",
+        this.keys.spend.publicKey,
+        {
+          root,
+          nullifiers,
+          commitments: outputs.map((o) => o.commitment),
+          publicAmount: "0",
+          fee: fee.toString(),
+          anchorRoot: root,
+        },
+        { spends: spendWitnesses, outputs: outputWitnesses },
+      );
       fee = estimateFee("shielded_transfer", payload);
     }
     const tx = signTx(
