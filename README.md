@@ -45,7 +45,7 @@ No infinite inflation. After year 8 the cap is reached.
 
 **Govern** — stake-weighted votes on protocol changes.
 
-Privacy math is Zcash Sapling-style (Groth16 + Pedersen commitments). This repo is a working reference, not a mainnet binary.
+Privacy uses Groth16 proofs and Pedersen commitments. This repo is a working reference, not a mainnet binary.
 
 ---
 
@@ -54,7 +54,7 @@ Privacy math is Zcash Sapling-style (Groth16 + Pedersen commitments). This repo 
 - **Clear cap.** 455M. Easy to model.
 - **Known unlocks.** Four dates. No surprise emissions.
 - **Two products in one chain.** Transparent DeFi + private transfers without a second token.
-- **Proven primitive.** Sapling is the most battle-tested shielded design after Zcash.
+- **Proven primitive.** Shielded notes, nullifiers, and SNARK proofs — the same pattern used by production privacy chains.
 - **Runnable today.** Tests + a 5-block demo in this repo.
 
 Not production-ready. Pairing checks in the reference prover are hashed; a real Groth16 stack (BLS12-381) is the next engineering step.
@@ -78,7 +78,7 @@ node --experimental-strip-types src/cli.ts supply
 | Folder | What |
 | --- | --- |
 | `src/tokenomics` | Cap and unlock schedule |
-| `src/crypto` | Keys, Merkle tree, shielded notes, Sapling SNARK |
+| `src/crypto` | Keys, Merkle tree, shielded notes, SNARK proofs |
 | `src/ledger` | Balances, fees, state |
 | `src/consensus` | Validators, finality, slashing |
 | `src/wallet` | Public + private txs |
