@@ -98,6 +98,7 @@ function padSiblings(siblings: string[] | undefined, depth = MERKLE_DEPTH): stri
 export function buildSpendCircuit(w: SpendWitness): { cs: R1cs; assignment: bigint[]; publicWires: number[] } {
   const cs = new R1cs();
   const assignment: bigint[] = [1n];
+
   const v = wireOf(cs, assignment, w.amount);
   const cmExpected = noteCmFr(w.amount, w.owner, w.rcm, w.memo);
   const nfExpected = nullifierFr(w.nsk, w.commitment);
@@ -109,24 +110,29 @@ export function buildSpendCircuit(w: SpendWitness): { cs: R1cs; assignment: bigi
   cs.equal(nfWire, nfCalc);
   cs.enforce(lcWire(v), lcConst(1n), lcWire(v));
 
-  const rcv = fromHex(w.rcv ?? w.rcm);
-  const cvExpected = valueCommit(w.amount, rcv);
+  const rcvVal = fromHex(w.rcv ?? w.rcm);
+  const cvExpected = valueCommit(w.amount, rcvVal);
   const cvWire = wireOf(cs, assignment, w.cv ? fromHex(w.cv) : cvExpected);
+  const rcv = wireOf(cs, assignment, rcvVal);
   const vGv = wireOf(cs, assignment, mul(mod(w.amount), Gv));
-  const rGr = wireOf(cs, assignment, mul(rcv, Gr));
+  const rGr = wireOf(cs, assignment, mul(rcvVal, Gr));
   const cvCalc = wireOf(cs, assignment, cvExpected);
   cs.enforce(lcWire(v), lcConst(Gv), lcWire(vGv));
-  cs.enforce(lcConst(1n), lcConst(mul(rcv, Gr)), lcWire(rGr));
+  cs.enforce(lcWire(rcv), lcConst(Gr), lcWire(rGr));
   cs.add(vGv, rGr, cvCalc);
   cs.equal(cvWire, cvCalc);
 
-  const ak = fromHex(w.ak ?? w.nsk);
-  const alpha = fromHex(w.alpha ?? "00".repeat(32));
-  const rkExpected = rkFrom(ak, alpha);
+  const akVal = fromHex(w.ak ?? w.nsk);
+  const alphaVal = fromHex(w.alpha ?? "00".repeat(32));
+  const rkExpected = rkFrom(akVal, alphaVal);
+  const ak = wireOf(cs, assignment, akVal);
+  const alpha = wireOf(cs, assignment, alphaVal);
+  const aGak = wireOf(cs, assignment, mul(alphaVal, Gak));
   const rkWire = wireOf(cs, assignment, w.rk ? fromHex(w.rk) : rkExpected);
   const rkCalc = wireOf(cs, assignment, rkExpected);
+  cs.enforce(lcWire(alpha), lcConst(Gak), lcWire(aGak));
+  cs.add(ak, aGak, rkCalc);
   cs.equal(rkWire, rkCalc);
-  cs.enforce(lcConst(1n), lcConst(add(ak, mul(alpha, Gak))), lcWire(rkCalc));
 
   const siblings = padSiblings(w.pathSiblings);
   const leafIndex = w.leafIndex ?? 0;
@@ -145,13 +151,27 @@ export function buildSpendCircuit(w: SpendWitness): { cs: R1cs; assignment: bigi
     const diffL = wireOf(cs, assignment, mod(sibVal - curVal));
     const tL = wireOf(cs, assignment, mul(bitVal, assignment[diffL]!));
     const left = wireOf(cs, assignment, leftVal);
-    cs.enforce([{ wire: sib, coeff: 1n }, { wire: cur, coeff: -1n }], lcConst(1n), lcWire(diffL));
+    cs.enforce(
+      [
+        { wire: sib, coeff: 1n },
+        { wire: cur, coeff: -1n },
+      ],
+      lcConst(1n),
+      lcWire(diffL),
+    );
     cs.mul(bit, diffL, tL);
     cs.add(cur, tL, left);
     const diffR = wireOf(cs, assignment, mod(curVal - sibVal));
     const tR = wireOf(cs, assignment, mul(bitVal, assignment[diffR]!));
     const right = wireOf(cs, assignment, rightVal);
-    cs.enforce([{ wire: cur, coeff: 1n }, { wire: sib, coeff: -1n }], lcConst(1n), lcWire(diffR));
+    cs.enforce(
+      [
+        { wire: cur, coeff: 1n },
+        { wire: sib, coeff: -1n },
+      ],
+      lcConst(1n),
+      lcWire(diffR),
+    );
     cs.mul(bit, diffR, tR);
     cs.add(sib, tR, right);
     const next = wireOf(cs, assignment, algebraicHash(leftVal, rightVal));
@@ -160,7 +180,8 @@ export function buildSpendCircuit(w: SpendWitness): { cs: R1cs; assignment: bigi
     idx = Math.floor(idx / 2);
   }
 
-  return { cs, assignment, publicWires: [cmWire, nfWire, v, cvWire, rkWire] };
+  const publicWires = [cmWire, nfWire, v, cvWire, rkWire];
+  return { cs, assignment, publicWires };
 }
 
 export function buildOutputCircuit(w: OutputWitness): { cs: R1cs; assignment: bigint[]; publicWires: number[] } {
@@ -172,14 +193,16 @@ export function buildOutputCircuit(w: OutputWitness): { cs: R1cs; assignment: bi
   const cmCalc = wireOf(cs, assignment, cmExpected);
   cs.equal(cmWire, cmCalc);
   cs.enforce(lcWire(v), lcConst(1n), lcWire(v));
-  const rcv = fromHex(w.rcv ?? w.rcm);
-  const cvExpected = valueCommit(w.amount, rcv);
+
+  const rcvVal = fromHex(w.rcv ?? w.rcm);
+  const cvExpected = valueCommit(w.amount, rcvVal);
   const cvWire = wireOf(cs, assignment, w.cv ? fromHex(w.cv) : cvExpected);
+  const rcv = wireOf(cs, assignment, rcvVal);
   const vGv = wireOf(cs, assignment, mul(mod(w.amount), Gv));
-  const rGr = wireOf(cs, assignment, mul(rcv, Gr));
+  const rGr = wireOf(cs, assignment, mul(rcvVal, Gr));
   const cvCalc = wireOf(cs, assignment, cvExpected);
   cs.enforce(lcWire(v), lcConst(Gv), lcWire(vGv));
-  cs.enforce(lcConst(1n), lcConst(mul(rcv, Gr)), lcWire(rGr));
+  cs.enforce(lcWire(rcv), lcConst(Gr), lcWire(rGr));
   cs.add(vGv, rGr, cvCalc);
   cs.equal(cvWire, cvCalc);
   return { cs, assignment, publicWires: [cmWire, v, cvWire] };
@@ -189,17 +212,30 @@ export function buildBindingCircuit(w: BindingWitness): { cs: R1cs; assignment: 
   const cs = new R1cs();
   const assignment: bigint[] = [1n];
   const vPub = w.kind === "shield" ? mod(-w.publicAmount) : w.kind === "unshield" ? mod(w.publicAmount) : 0n;
+
+  const spends = [...w.spendCvs];
+  const outputs = [...w.outputCvs];
+  while (spends.length < 4) spends.push(0n);
+  while (outputs.length < 4) outputs.push(0n);
+
   let acc = wireOf(cs, assignment, 0n);
-  for (const cv of w.spendCvs) {
+  for (const cv of spends) {
     const cvW = wireOf(cs, assignment, cv);
     const next = wireOf(cs, assignment, add(assignment[acc]!, cv));
     cs.add(acc, cvW, next);
     acc = next;
   }
-  for (const cv of w.outputCvs) {
+  for (const cv of outputs) {
     const cvW = wireOf(cs, assignment, cv);
     const next = wireOf(cs, assignment, add(assignment[acc]!, mod(-cv)));
-    cs.enforce([{ wire: acc, coeff: 1n }, { wire: cvW, coeff: -1n }], lcConst(1n), lcWire(next));
+    cs.enforce(
+      [
+        { wire: acc, coeff: 1n },
+        { wire: cvW, coeff: -1n },
+      ],
+      lcConst(1n),
+      lcWire(next),
+    );
     acc = next;
   }
   const expected = valueCommit(vPub, w.rBind);
@@ -210,7 +246,8 @@ export function buildBindingCircuit(w: BindingWitness): { cs: R1cs; assignment: 
 }
 
 export function circuitDigest(cs: R1cs): string {
-  const ser = (lc: { wire: number; coeff: bigint }[]) => lc.map((t) => `${t.wire}:${t.coeff.toString()}`).join(",");
+  const ser = (lc: { wire: number; coeff: bigint }[]) =>
+    lc.map((t) => `${t.wire}:${t.coeff.toString()}`).join(",");
   const body = cs.constraints.map((c) => `${ser(c.a)}*${ser(c.b)}=${ser(c.c)}`).join("|");
   return Buffer.from(tagged("kyron-r1cs", encodeUtf8(body), encodeUtf8(String(cs.wires)))).toString("hex");
 }
