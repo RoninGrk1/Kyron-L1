@@ -2,7 +2,14 @@
 
 Reference implementation of the Kyron privacy-focused Layer 1 protocol.
 
-This is a local, auditable protocol stack — not a production network. Zero-knowledge proofs are modeled as transcript-bound statements with note commitments, nullifiers, and viewing-key encryption. A production node would replace `src/crypto/shielded.ts` with a verified Groth16/Plonk/STARK circuit.
+This is a local, auditable protocol stack — not a production network.
+
+Shielded transfers use a **Zcash Sapling-style Groth16 layer** (`src/crypto/snark/`):
+
+- Spend and output R1CS circuits bind note openings, nullifiers, and value
+- A published verifying key from a reference ceremony (`kyron-sapling-ceremony-1`)
+- Groth16-shaped proofs `(A, B, C)` on a BN254 scalar-field API
+- Pairing check is hashed (no native BLS12-381 pairing in this Node reference). Swap `groth16.ts` for a real `ark-groth16` / `bellman` prover before mainnet.
 
 ## Spec constants
 
@@ -28,7 +35,7 @@ node --experimental-strip-types src/cli.ts supply
 ## Layout
 
 - `src/tokenomics` — hard-capped supply and the two-year release schedule
-- `src/crypto` — addresses, signatures, Merkle tree, shielded notes
+- `src/crypto` — addresses, signatures, Merkle tree, shielded notes, Sapling Groth16
 - `src/ledger` — state machine, fees, transaction application
 - `src/consensus` — validator set, proposer election, slashing, rewards
 - `src/wallet` — public and shielded transaction construction

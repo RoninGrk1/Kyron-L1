@@ -5,6 +5,7 @@ export * from "./crypto/hash.ts";
 export * from "./crypto/keys.ts";
 export * from "./crypto/merkle.ts";
 export * from "./crypto/shielded.ts";
+export * from "./crypto/snark/index.ts";
 export * from "./tokenomics/supply.ts";
 export * from "./ledger/state.ts";
 export * from "./ledger/fees.ts";
