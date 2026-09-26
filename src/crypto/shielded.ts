@@ -10,6 +10,7 @@ import {
 import { bytesToHex, canonical, encodeUtf8, hexToBytes, u64be } from "../encoding.ts";
 import { tagged } from "./hash.ts";
 import type { Note } from "../types.ts";
+import { proveSapling, verifySapling, type SaplingProof, type SaplingWitness } from "./snark/tx.ts";
 
 export interface EncryptedNote {
   commitment: string;
@@ -60,7 +61,6 @@ export function encryptNote(note: Note, recipientViewPub: string, senderViewSecr
   const enc = Buffer.concat([cipher.update(plain), cipher.final()]);
   const tag = cipher.getAuthTag();
   const ciphertext = Buffer.concat([enc, tag]).toString("hex");
-  // Mix sender OVK material so outgoing viewing can be implemented later.
   void senderViewSecret;
   return {
     commitment: noteCommitment(note),
@@ -120,38 +120,26 @@ function x25519Shared(secretDerHex: string, peerPubDerHex: string): Uint8Array {
   return new Uint8Array(secret);
 }
 
-/**
- * Reference "proof" object. A production node would verify a Groth16/Plonk/STARK
- * circuit. This implementation binds public inputs to a transcript hash so the
- * ledger cannot accept a proof that does not commit to the declared statements.
- */
-export interface ShieldedProof {
-  kind: "shield" | "unshield" | "shielded_transfer";
-  transcript: string;
-  publicInputs: {
-    root?: string;
-    nullifiers: string[];
-    commitments: string[];
-    publicAmount: string;
-    fee: string;
-    anchorRoot?: string;
-  };
-}
+export interface ShieldedProof extends SaplingProof {}
 
 export function makeProof(
   kind: ShieldedProof["kind"],
   spendAuth: string,
   publicInputs: ShieldedProof["publicInputs"],
+  witness?: SaplingWitness,
 ): ShieldedProof {
+  const sapling = proveSapling(kind, spendAuth, publicInputs, witness);
   const transcript = bytesToHex(
     tagged(
       "kyron-zk-transcript",
       encodeUtf8(kind),
       encodeUtf8(spendAuth),
       encodeUtf8(canonical(publicInputs)),
+      encodeUtf8(sapling.vkSpend),
+      encodeUtf8(sapling.vkOutput),
     ),
   );
-  return { kind, transcript, publicInputs };
+  return { ...sapling, transcript };
 }
 
 export function verifyProof(proof: ShieldedProof, expected: ShieldedProof["publicInputs"], spendAuth: string): boolean {
@@ -167,6 +155,11 @@ export function verifyProof(proof: ShieldedProof, expected: ShieldedProof["publi
   if (proof.publicInputs.publicAmount !== expected.publicAmount) return false;
   if (proof.publicInputs.fee !== expected.fee) return false;
   if ((expected.root ?? "") !== (proof.publicInputs.root ?? "")) return false;
+  if (proof.spends?.length || proof.outputs?.length) {
+    return verifySapling(proof, expected, spendAuth);
+  }
   const recomputed = makeProof(proof.kind, spendAuth, expected);
   return recomputed.transcript === proof.transcript;
 }
+
+export type { SaplingWitness };
