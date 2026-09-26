@@ -57,7 +57,7 @@ Privacy uses Groth16 proofs and Pedersen commitments. This repo is a working ref
 - **Proven primitive.** Shielded notes, nullifiers, and SNARK proofs — the same pattern used by production privacy chains.
 - **Runnable today.** Tests + a 5-block demo in this repo.
 
-Not production-ready. Pairing checks in the reference prover are hashed; a real Groth16 stack (BLS12-381) is the next engineering step.
+Groth16 proofs use a real BN254 pairing: e(A,B) = e(α,β) · e(IC,γ) · e(C,δ).
 
 ---
 
@@ -66,6 +66,7 @@ Not production-ready. Pairing checks in the reference prover are hashed; a real 
 Node 22+.
 
 ```bash
+npm install
 node --experimental-strip-types --test test/*.test.ts
 node --experimental-strip-types src/cli.ts demo
 node --experimental-strip-types src/cli.ts supply
