@@ -8,11 +8,9 @@ Hard cap. Proof of Stake. Shielded transfers. Open source.
 
 ## Why it exists
 
-Most chains force a tradeoff: transparent ledgers or slow, opaque privacy.
+Most chains force a tradeoff: a transparent ledger, or privacy that’s hard to use.
 
-Kyron keeps a public account layer for payments, staking, and governance — and a shielded pool so value can move without publishing sender, receiver, or amount.
-
-Same asset. Two modes.
+Kyron keeps one asset with two modes. Pay, stake, and vote in the open. Move value privately when you need to — without a second token.
 
 ---
 
@@ -23,45 +21,41 @@ Same asset. Two modes.
 | Ticker | **KRN** |
 | Max supply | **455,000,000** |
 | At genesis | **127,400,000** (28%) |
-| Rest | four equal releases at years **2, 4, 6, 8** |
+| Unlock | four equal releases at years **2, 4, 6, 8** |
 | Each release | **81,900,000** |
-| Decimals | 18 |
 
-No infinite inflation. After year 8 the cap is reached.
-
----
-
-## How it works (one page)
-
-**Public** — send KRN the usual way. Balances and fees are visible.
-
-**Shield** — lock public KRN into a private note. Only a commitment hits the chain.
-
-**Private send** — spend notes with a zero-knowledge proof. The network sees a valid proof, a nullifier (so notes can’t be spent twice), and new commitments. Not who, not how much.
-
-**Unshield** — bring value back to a public address.
-
-**Stake** — lock KRN, produce blocks, earn fees + schedule releases. Misbehave and you get slashed.
-
-**Govern** — stake-weighted votes on protocol changes.
-
-Privacy uses Groth16 proofs and Pedersen commitments. This repo is a working reference, not a mainnet binary.
+After year 8 the cap is hit. No extra issuance.
 
 ---
 
-## Why a VC should care
+## Product
 
-- **Clear cap.** 455M. Easy to model.
-- **Known unlocks.** Four dates. No surprise emissions.
-- **Two products in one chain.** Transparent DeFi + private transfers without a second token.
-- **Proven primitive.** Shielded notes, nullifiers, and SNARK proofs — the same pattern used by production privacy chains.
-- **Runnable today.** Tests + a 5-block demo in this repo.
+**Public send** — normal payments. Balances are visible.
 
-Groth16 proofs use a real BN254 pairing: e(A,B) = e(α,β) · e(IC,γ) · e(C,δ).
+**Shield** — lock KRN into a private note.
+
+**Private send** — move value with a proof. The chain sees that the proof is valid, not who paid whom or how much.
+
+**Unshield** — bring funds back to a public address.
+
+**Stake** — lock KRN, produce blocks, earn fees. Cheat and you get slashed.
+
+**Govern** — stake-weighted votes.
 
 ---
 
-## Run it
+## Why it’s fundable
+
+- **Modelable supply.** 455M cap. Four dated unlocks. Then done.
+- **One chain, two markets.** Transparent DeFi + private transfers.
+- **Working code today.** Tests and a local demo in this repo.
+- **Standard privacy math.** Groth16 proofs on BN254.
+
+This is a reference implementation, not a live mainnet.
+
+---
+
+## Run
 
 Node 22+.
 
@@ -69,21 +63,8 @@ Node 22+.
 npm install
 node --experimental-strip-types --test test/*.test.ts
 node --experimental-strip-types src/cli.ts demo
-node --experimental-strip-types src/cli.ts supply
 ```
 
 ---
 
-## Repo
-
-| Folder | What |
-| --- | --- |
-| `src/tokenomics` | Cap and unlock schedule |
-| `src/crypto` | Keys, Merkle tree, shielded notes, SNARK proofs |
-| `src/ledger` | Balances, fees, state |
-| `src/consensus` | Validators, finality, slashing |
-| `src/wallet` | Public + private txs |
-| `src/node` | Local chain + mempool |
-| `src/governance` | Proposals and votes |
-
-Code: [github.com/RoninGrk1/Kyron-L1](https://github.com/RoninGrk1/Kyron-L1)
+[github.com/RoninGrk1/Kyron-L1](https://github.com/RoninGrk1/Kyron-L1)
