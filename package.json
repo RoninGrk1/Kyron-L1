@@ -1,0 +1,17 @@
+{
+  "name": "kyron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kyron (KRN) — privacy-focused Layer 1 reference implementation",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "node": "node --experimental-strip-types src/cli.ts node",
+    "demo": "node --experimental-strip-types src/cli.ts demo"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
